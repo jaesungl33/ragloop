@@ -23,6 +23,7 @@ chroma = ["chromadb>=0.5"]
 mcp = ["mcp>=1.2"]
 # Convenience: everything needed to run the reference stack end to end.
 all = ["anthropic>=0.40", "chromadb>=0.5", "mcp>=1.2"]
+evals = ["ragas>=0.1", "deepeval>=0.21", "datasets>=2.18"]
 dev = ["pytest>=8"]
 
 [project.scripts]
