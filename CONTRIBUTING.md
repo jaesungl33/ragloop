@@ -6,7 +6,7 @@ and easy to extend, so most contributions land quickly.
 ## Development setup
 
 ```bash
-git clone https://github.com/<your-username>/ragloop
+git clone https://github.com/jaesungl33/ragloop
 cd ragloop
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
