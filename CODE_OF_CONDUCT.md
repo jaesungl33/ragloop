@@ -7,4 +7,4 @@ In short: be respectful, assume good faith, and keep discussion focused on the
 work. Harassment or discrimination of any kind is not tolerated.
 
 To report unacceptable behavior, contact the maintainers at
-`<your-contact-email>`. Reports will be handled confidentially.
+`<thanh.jaesunglee@gmail.com>`. Reports will be handled confidentially.
