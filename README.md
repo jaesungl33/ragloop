@@ -10,6 +10,12 @@ documents, your vector store, and your LLM, and it answers questions with
 inline citations — checking its own work and retrying when an answer isn't
 grounded.
 
+![ragloop live demo](docs/demo.gif)
+
+*The scripted demo (`examples/demo.py`): a cited, grounded answer for an
+in-corpus question — and an honest decline instead of an invented answer when
+the corpus doesn't cover the question.*
+
 It's built so that the things companies actually differ on are swappable
 without touching the engine:
 

@@ -23,6 +23,8 @@ config.yaml
 .DS_Store
 evals/results.json
 sample-docs/
+# asciinema recording source (regenerate from docs/demo.gif workflow)
+docs/demo.cast
 
 # Editor / agent local settings
 .claude/
