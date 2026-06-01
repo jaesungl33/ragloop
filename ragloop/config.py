@@ -45,6 +45,10 @@ def _build_llm(cfg: Config) -> LLMProvider:
         from .llm.anthropic_provider import AnthropicProvider
 
         return AnthropicProvider(**cfg.llm)
+    if cfg.llm_provider == "ollama":
+        from .llm.ollama_provider import OllamaProvider
+
+        return OllamaProvider(**cfg.llm)
     raise ValueError(
         f"Unknown llm_provider '{cfg.llm_provider}'. "
         "Register your own by subclassing LLMProvider and editing _build_llm."

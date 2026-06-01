@@ -15,48 +15,63 @@ and existing tests work without it.
 
 ## Run
 
+The default metrics are **deterministic and label-based** — no LLM judge — so a
+full run costs **$0** on a local model and is reproducible by anyone:
+
 ```bash
-# Offline smoke run — no API key needed; LLM-judged metrics are skipped
+# $0, fully local: real Chroma retrieval + a local LLM via Ollama
+ollama pull llama3.2:3b
+python -m evals.runner --llm ollama --model llama3.2:3b
+
+# Offline smoke run — fake LLM, no model needed (CI-friendly)
 python -m evals.runner --offline
 
-# Full run — scores all metrics via a real LLM judge
-ANTHROPIC_API_KEY=sk-ant-... python -m evals.runner
+# Hosted model instead of local
+ANTHROPIC_API_KEY=sk-ant-... python -m evals.runner --llm anthropic
+
+# Add the LLM-judged RAGAS/deepeval metrics (opt-in; needs an OpenAI/Anthropic
+# key and costs money — the judge fires many grading calls)
+python -m evals.runner --llm ollama --judge
 
 # Re-print the table from a previous run
-python -m evals.report
-python -m evals.report path/to/results.json   # custom file
+python -m evals.report [path/to/results.json]
 ```
 
-Results are written to `evals/results.json` after each run.
+Retrieval uses a **real Chroma vector store** with free local embeddings, so the
+retrieval metrics reflect a real index — not a toy. Results are written to
+`evals/results.json`.
 
 ## Metrics
 
+**Deterministic (default — no API, no judge):**
+
+| Metric | Notes |
+|---|---|
+| **Hallucination resistance** | Fraction of *out-of-corpus* questions correctly declined (↑). The headline safety metric. |
+| **False-decline rate** | Fraction of answerable questions wrongly refused (↓). |
+| **Retrieval recall@k** | `\|retrieved ∩ gold\| / \|gold\|` against labelled `relevant_ids` (↑). |
+| **Citation accuracy** | `\|cited ∩ retrieved\| / \|cited\|` (↑). |
+| **Answer similarity** | Cosine of answer vs. `ground_truth` using a local MiniLM embedder (↑). |
+| **Avg latency / token cost / retries** | Cost of the self-correction loop (↓). |
+
+**LLM-judged (opt-in via `--judge`, needs an API key, costs money):**
+
 | Metric | Tool | Notes |
 |---|---|---|
-| **Faithfulness** | RAGAS | Grounding in the *retrieved context* — see note below |
+| **Faithfulness** | RAGAS | Grounding in the retrieved context — see caveat |
 | **Answer Relevancy** | RAGAS | How directly the answer addresses the question |
-| **Context Precision** | RAGAS | Fraction of retrieved chunks that are actually relevant |
-| **Context Recall** | RAGAS | Fraction of relevant chunks that were retrieved |
-| **Citation Accuracy** | built-in | `\|cited ∩ retrieved\| / \|cited\|`; always runs offline |
-| **Avg Latency (s)** | built-in | Wall-clock time per question |
-| **Avg Token Cost** | built-in | Approx tokens (input + output chars ÷ 4) per question |
-| **Avg Retries** | built-in | Extra loop iterations beyond the first attempt |
+| **Context Precision / Recall** | RAGAS | Relevance of retrieved chunks |
 
-> **Faithfulness ≠ factual truth.** A score of 1.0 means every claim in the
-> answer is supported by a retrieved chunk. It says nothing about whether
-> that chunk is factually correct. An answer can be faithfully grounded in
-> a wrong source and still score 1.0.
-
-LLM-judged metrics (faithfulness, answer relevancy, context precision/recall)
-require `ragas>=0.1` and either `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`.
-**Citation accuracy always runs**, making it the primary offline signal.
+> **Faithfulness ≠ factual truth.** A score of 1.0 means every claim is
+> supported by a retrieved chunk — not that the chunk is correct. RAGAS/deepeval
+> default their judge to OpenAI, which is why these are opt-in and not free.
 
 ## Corpus
 
-Ten chunks drawn from the five Northstar Outdoors policy documents in
-`examples/corpus/` (refunds, shipping, warranty, privacy, support hours).
-Two chunks per document keep retrieval non-trivial so precision and recall
-are meaningful even with the in-memory fake retriever.
+Ten chunks from the five Northstar Outdoors policy documents in
+`examples/corpus/`, plus **four out-of-corpus questions** (`answerable: False`)
+the corpus deliberately can't answer — these drive the hallucination-resistance
+metric. Two chunks per document keep retrieval non-trivial.
 
 ## Adding questions or documents
 

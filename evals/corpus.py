@@ -135,4 +135,32 @@ QUESTIONS: list[dict] = [
         "ground_truth": "No, Northstar only ships to the 50 U.S. states.",
         "relevant_ids": ["shipping:0"],
     },
+    # --- Out-of-corpus / unanswerable: the corpus contains NO answer. A good
+    #     system should DECLINE, not invent one. `answerable: False` flags these
+    #     so the deterministic scorer can measure hallucination resistance.
+    {
+        "question": "Do you offer financing or payment plans?",
+        "ground_truth": "The provided sources do not cover financing or payment plans.",
+        "relevant_ids": [],
+        "answerable": False,
+    },
+    {
+        "question": "What is your CEO's name?",
+        "ground_truth": "The provided sources do not mention the CEO or any staff names.",
+        "relevant_ids": [],
+        "answerable": False,
+    },
+    {
+        "question": "Can I buy a gift card?",
+        "ground_truth": "The provided sources do not mention gift cards.",
+        "relevant_ids": [],
+        "answerable": False,
+    },
+    {
+        "question": "Do you price match competitors?",
+        "ground_truth": "The provided sources do not mention price matching.",
+        "relevant_ids": [],
+        "answerable": False,
+    },
 ]
+

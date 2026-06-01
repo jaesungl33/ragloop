@@ -261,15 +261,21 @@ def _score_with_deepeval(results: List[RunResult]) -> None:
 # LLM factory
 # ---------------------------------------------------------------------------
 
-def _build_llm(offline: bool) -> LLMProvider:
-    if offline:
+def _build_llm(provider: str, model: Optional[str]) -> LLMProvider:
+    """provider: 'auto' | 'anthropic' | 'ollama' | 'offline'."""
+    if provider == "offline":
         return _OfflineLLM()
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
+    if provider == "ollama":
+        from ragloop.llm.ollama_provider import OllamaProvider  # noqa: PLC0415
+        m = model or "llama3.2:3b"
+        print(f"[runner] using OllamaProvider (local, model={m})")
+        return OllamaProvider(model=m)
+    if provider == "anthropic" or (provider == "auto" and os.environ.get("ANTHROPIC_API_KEY")):
         from ragloop.llm.anthropic_provider import AnthropicProvider  # noqa: PLC0415
-        print("[runner] using AnthropicProvider (claude-sonnet-4-6)")
-        return AnthropicProvider()
-    print("[runner] ANTHROPIC_API_KEY not set — falling back to offline LLM")
+        m = model or "claude-sonnet-4-6"
+        print(f"[runner] using AnthropicProvider (model={m})")
+        return AnthropicProvider(model=m)
+    print("[runner] no real LLM selected/available — falling back to offline LLM")
     return _OfflineLLM()
 
 
@@ -279,25 +285,41 @@ def _build_llm(offline: bool) -> LLMProvider:
 
 def main() -> None:
     from . import report  # local import avoids any circular-import risk
+    from .metrics import score_deterministic  # noqa: PLC0415
 
     parser = argparse.ArgumentParser(description="Run ragloop evals")
     parser.add_argument(
-        "--offline",
+        "--llm",
+        choices=["auto", "anthropic", "ollama", "offline"],
+        default="auto",
+        help="Which LLM to generate answers with. 'auto' uses Anthropic if "
+        "ANTHROPIC_API_KEY is set, else offline. 'ollama' runs locally for $0.",
+    )
+    parser.add_argument("--model", default=None, help="Override the model id for the chosen provider.")
+    parser.add_argument(
+        "--offline", action="store_true", help="Alias for --llm offline (no API key, no cost)."
+    )
+    parser.add_argument(
+        "--judge",
         action="store_true",
-        help="Force the in-memory fake LLM (no API key required).",
+        help="Also run the LLM-judged RAGAS/deepeval metrics (needs OPENAI/ANTHROPIC key; costs money).",
     )
     args = parser.parse_args()
+    provider = "offline" if args.offline else args.llm
 
-    # --- shared retriever ---
-    # Import here so we can also use InMemoryRetriever without pulling in
-    # quickstart at module level (keeps import errors obvious).
-    from quickstart import InMemoryRetriever  # type: ignore  # noqa: PLC0415
+    # --- shared retriever: real Chroma vector store, free local embeddings ---
+    from ragloop.retrieval.chroma_retriever import ChromaRetriever  # noqa: PLC0415
 
-    retriever = InMemoryRetriever()
+    retriever = ChromaRetriever(collection="ragloop_evals")
     retriever.add(DOCS)
-    print(f"[runner] loaded {len(DOCS)} chunks, {len(QUESTIONS)} questions")
+    questions_by_text = {q["question"]: q for q in QUESTIONS}
+    n_unans = sum(1 for q in QUESTIONS if not q.get("answerable", True))
+    print(
+        f"[runner] loaded {len(DOCS)} chunks, {len(QUESTIONS)} questions "
+        f"({n_unans} out-of-corpus) into Chroma"
+    )
 
-    inner_llm = _build_llm(args.offline)
+    inner_llm = _build_llm(provider, args.model)
     tracing_llm = TracingLLM(inner_llm)
 
     # --- baseline ---
@@ -314,30 +336,33 @@ def main() -> None:
         "ragloop", loop.ask, QUESTIONS, tracing_llm, retriever
     )
 
-    # --- scoring ---
+    # --- scoring (deterministic: always, no API cost) ---
     print("[runner] scoring citation accuracy ...")
     _score_citation_accuracy(baseline_results)
     _score_citation_accuracy(ragloop_results)
 
-    if not args.offline:
-        print("[runner] scoring with ragas ...")
+    if args.judge:
+        print("[runner] scoring with ragas (LLM judge) ...")
         _score_with_ragas(baseline_results)
         _score_with_ragas(ragloop_results)
         print("[runner] scoring with deepeval ...")
         _score_with_deepeval(baseline_results)
         _score_with_deepeval(ragloop_results)
 
+    # --- to dicts, then deterministic label-based metrics ---
+    base_dicts = [dataclasses.asdict(r) for r in baseline_results]
+    rag_dicts = [dataclasses.asdict(r) for r in ragloop_results]
+    print("[runner] scoring deterministic metrics (recall@k, decline, similarity) ...")
+    score_deterministic(base_dicts, questions_by_text)
+    score_deterministic(rag_dicts, questions_by_text)
+
     # --- persist ---
     out_path = Path(__file__).parent / "results.json"
-    payload = [dataclasses.asdict(r) for r in baseline_results + ragloop_results]
-    out_path.write_text(json.dumps(payload, indent=2))
+    out_path.write_text(json.dumps(base_dicts + rag_dicts, indent=2))
     print(f"[runner] results written to {out_path}")
 
     # --- report ---
-    report.print_table(
-        [dataclasses.asdict(r) for r in baseline_results],
-        [dataclasses.asdict(r) for r in ragloop_results],
-    )
+    report.print_table(base_dicts, rag_dicts)
 
 
 if __name__ == "__main__":

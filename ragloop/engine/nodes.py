@@ -62,8 +62,14 @@ def retrieve(state: GraphState, deps: Deps) -> Dict[str, Any]:
     """Agentic step: pick a strategy per sub-task, blend lexical + semantic."""
     seen: Dict[str, Document] = {}
     feedback = state.get("feedback", "")
-    for task in state.get("subtasks", [state["query"]]):
-        # A short identifier-like query leans lexical; prose leans semantic.
+    # Always search the original question alongside the planner's sub-tasks, so
+    # decomposition can only *add* recall, never lose the chunk a direct search
+    # would have found. (Benchmarks showed weak planners hurting simple queries.)
+    tasks = list(state.get("subtasks") or [])
+    if state["query"] not in tasks:
+        tasks.insert(0, state["query"])
+    for task in tasks:
+        # Blend lexical (exact terms) and semantic (meaning) for each task.
         lexical = deps.retriever.keyword_search(task, k=deps.k)
         semantic = deps.retriever.semantic_search(task, k=deps.k)
         for doc in lexical + semantic:

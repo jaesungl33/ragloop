@@ -21,8 +21,8 @@ without touching the engine:
 
 - **Your vector store** — Chroma ships as the reference backend; swap in
   pgvector, Pinecone, or Elasticsearch by subclassing one interface.
-- **Your LLM** — Anthropic (Claude) ships as the reference provider; add
-  OpenAI, Bedrock, or a local model the same way.
+- **Your LLM** — Anthropic (Claude) and a local **Ollama** backend ship as
+  reference providers; add OpenAI, Bedrock, or any model the same way.
 - **Your corpus, models, and retry budget** — all config-driven.
 
 ## How it works
@@ -116,6 +116,45 @@ grounded=True  attempts=1  sources=[...]
 ```
 
 Exact wording varies by model run; the important part is grounded, cited answers for in-corpus questions and an honest decline for out-of-corpus ones.
+
+## Benchmarks
+
+ragloop ships a reproducible eval harness (`evals/`) that runs a naive one-shot
+**baseline** (embed → top-k → generate) against the full **self-correcting
+loop** over a labelled policy corpus — 14 questions, 4 of them deliberately
+*out-of-corpus*. Scoring is **deterministic and label-based** (no LLM-as-judge),
+so anyone can reproduce it with **zero API cost** on a local model:
+
+```bash
+pip install -e ".[evals,chroma]"
+ollama pull llama3.2:3b          # any local model works
+python -m evals.runner --llm ollama --model llama3.2:3b
+```
+
+Representative run (local `llama3.2:3b`, real Chroma retrieval):
+
+| Metric | Baseline | RagLoop | What it means |
+|---|---:|---:|---|
+| **Hallucination resistance** | 1.00 | **1.00** | fraction of *unanswerable* questions correctly declined (↑) |
+| **False-decline rate** | 0.00 | **0.00** | answerable questions wrongly refused (↓) |
+| **Citation accuracy** | 1.00 | **1.00** | cited IDs that are actually in the retrieved set (↑) |
+| **Retrieval recall@k** | 1.00 | 0.90 | gold chunks surfaced (↑) |
+| **Answer similarity** | 0.78 | 0.78 | cosine vs. ground truth, local embeddings (↑) |
+| Avg latency (s) | 1.8 | 5.1 | wall-clock per question (↓) |
+| Avg token cost | 415 | 1203 | approx tokens per question (↓) |
+| Avg retries | 0.00 | 0.36 | extra loop iterations (↓) |
+
+**Honest read of these numbers.** On a small, clean corpus both pipelines
+already resist hallucination perfectly and cite accurately — so here the loop's
+self-correction buys safety you can't see, at a real ~2.8× latency / ~2.9× token
+cost. The loop earns that cost on **noisier corpora, weaker retrieval, or
+higher-stakes grounding**, where a one-shot baseline *would* answer from a wrong
+chunk and the critic catches it. Building this benchmark also surfaced a real
+regression — the planner's decomposition could drop the chunk a direct search
+would find — which is now fixed (recall 0.80 → 0.90) and guarded by a test. The
+remaining recall gap (cross-query score comparability in fusion) is tracked as
+future work. See [`evals/README.md`](evals/README.md) for methodology and the
+LLM-judged RAGAS metrics (opt-in via `--judge`).
 
 ## Serve retrieval over MCP
 

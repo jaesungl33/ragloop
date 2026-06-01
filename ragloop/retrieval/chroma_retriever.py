@@ -33,10 +33,12 @@ class ChromaRetriever(Retriever):
     def add(self, documents: List[Document]) -> None:
         if not documents:
             return
+        # Chroma rejects empty metadata dicts, so guarantee every record carries
+        # at least its own id. Caller-supplied metadata is preserved and wins.
         self._col.upsert(
             ids=[d.id for d in documents],
             documents=[d.text for d in documents],
-            metadatas=[d.metadata or {} for d in documents],
+            metadatas=[{"doc_id": d.id, **(d.metadata or {})} for d in documents],
         )
 
     def _to_docs(self, res, with_distance: bool) -> List[Document]:
