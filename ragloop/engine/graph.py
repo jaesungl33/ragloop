@@ -9,7 +9,7 @@ is what classic linear RAG cannot express and what makes this self-correcting.
 from __future__ import annotations
 
 from functools import partial
-from typing import Any, Dict
+from typing import Any
 
 from .nodes import Deps, critique, fuse, generate, plan, retrieve, route_after_critic
 from .state import GraphState
@@ -46,7 +46,7 @@ class RagLoop:
         self.max_attempts = max_attempts
         self._graph = build_graph(deps)
 
-    def ask(self, query: str) -> Dict[str, Any]:
+    def ask(self, query: str) -> dict[str, Any]:
         initial: GraphState = {
             "query": query,
             "attempts": 0,

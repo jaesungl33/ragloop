@@ -6,8 +6,6 @@ This is also how the test suite exercises the loop without network calls.
 """
 from __future__ import annotations
 
-from typing import List, Optional
-
 from ragloop import Deps, Document, LLMProvider, RagLoop, Retriever
 
 
@@ -15,11 +13,11 @@ class InMemoryRetriever(Retriever):
     def __init__(self) -> None:
         self._docs: dict[str, Document] = {}
 
-    def add(self, documents: List[Document]) -> None:
+    def add(self, documents: list[Document]) -> None:
         for d in documents:
             self._docs[d.id] = d
 
-    def semantic_search(self, query: str, k: int = 5) -> List[Document]:
+    def semantic_search(self, query: str, k: int = 5) -> list[Document]:
         terms = set(query.lower().split())
         scored = [
             Document(d.id, d.text, d.metadata, score=len(terms & set(d.text.lower().split())))
@@ -28,11 +26,11 @@ class InMemoryRetriever(Retriever):
         scored.sort(key=lambda d: d.score or 0, reverse=True)
         return scored[:k]
 
-    def keyword_search(self, query: str, k: int = 5) -> List[Document]:
+    def keyword_search(self, query: str, k: int = 5) -> list[Document]:
         hits = [d for d in self._docs.values() if query.lower() in d.text.lower()]
         return hits[:k]
 
-    def get_chunk(self, doc_id: str) -> Optional[Document]:
+    def get_chunk(self, doc_id: str) -> Document | None:
         return self._docs.get(doc_id)
 
 

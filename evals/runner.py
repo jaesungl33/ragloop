@@ -27,7 +27,6 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import List, Optional
 
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
@@ -50,17 +49,17 @@ class RunResult:
     pipeline: str
     question: str
     answer: str
-    sources: List[str]
-    contexts: List[str]
+    sources: list[str]
+    contexts: list[str]
     ground_truth: str
     latency_s: float
     token_cost: int
     retries: int
-    faithfulness: Optional[float] = None
-    answer_relevancy: Optional[float] = None
-    context_precision: Optional[float] = None
-    context_recall: Optional[float] = None
-    citation_accuracy: Optional[float] = None
+    faithfulness: float | None = None
+    answer_relevancy: float | None = None
+    context_precision: float | None = None
+    context_recall: float | None = None
+    citation_accuracy: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -130,8 +129,8 @@ def run_pipeline(
     questions: list,
     tracing_llm: TracingLLM,
     retriever,
-) -> List[RunResult]:
-    results: List[RunResult] = []
+) -> list[RunResult]:
+    results: list[RunResult] = []
     for q in questions:
         tracing_llm.reset()
         t0 = time.perf_counter()
@@ -141,7 +140,7 @@ def run_pipeline(
         # Baseline returns contexts directly; RagLoop returns source IDs only —
         # reconstruct context text via get_chunk so RAGAS has what it needs.
         if "contexts" in raw:
-            contexts: List[str] = raw["contexts"]
+            contexts: list[str] = raw["contexts"]
         else:
             contexts = []
             for sid in raw.get("sources", []):
@@ -167,7 +166,7 @@ def run_pipeline(
 # Scoring
 # ---------------------------------------------------------------------------
 
-def _score_citation_accuracy(results: List[RunResult]) -> None:
+def _score_citation_accuracy(results: list[RunResult]) -> None:
     for r in results:
         cited = set(_CITE_RE.findall(r.answer))
         if not cited:
@@ -176,7 +175,7 @@ def _score_citation_accuracy(results: List[RunResult]) -> None:
             r.citation_accuracy = len(cited & set(r.sources)) / len(cited)
 
 
-def _score_with_ragas(results: List[RunResult]) -> None:
+def _score_with_ragas(results: list[RunResult]) -> None:
     try:
         from datasets import Dataset  # type: ignore
         from ragas import evaluate  # type: ignore
@@ -226,7 +225,7 @@ def _score_with_ragas(results: List[RunResult]) -> None:
         print(f"[ragas] scoring failed: {exc}")
 
 
-def _score_with_deepeval(results: List[RunResult]) -> None:
+def _score_with_deepeval(results: list[RunResult]) -> None:
     try:
         from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric  # type: ignore
         from deepeval.test_case import LLMTestCase  # type: ignore
@@ -261,7 +260,7 @@ def _score_with_deepeval(results: List[RunResult]) -> None:
 # LLM factory
 # ---------------------------------------------------------------------------
 
-def _build_llm(provider: str, model: Optional[str]) -> LLMProvider:
+def _build_llm(provider: str, model: str | None) -> LLMProvider:
     """provider: 'auto' | 'anthropic' | 'ollama' | 'offline'."""
     if provider == "offline":
         return _OfflineLLM()

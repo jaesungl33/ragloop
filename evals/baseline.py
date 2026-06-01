@@ -7,7 +7,6 @@ Reuses the existing Retriever and LLMProvider interfaces without modification.
 from __future__ import annotations
 
 import time
-from typing import List
 
 from ragloop import LLMProvider, Retriever
 

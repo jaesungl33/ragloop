@@ -9,12 +9,11 @@ data" pattern.
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from ..config import Config, _build_retriever
 
 
-def build_server(cfg: Optional[Config] = None):
+def build_server(cfg: Config | None = None):
     from mcp.server.fastmcp import FastMCP
 
     cfg = cfg or Config()

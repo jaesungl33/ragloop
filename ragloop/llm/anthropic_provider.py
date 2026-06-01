@@ -6,19 +6,34 @@ at it -- no engine changes required.
 """
 from __future__ import annotations
 
+import logging
 import os
-from typing import Optional
+from typing import Any
 
+from ._retry import retry_call
 from .base import LLMProvider
+
+log = logging.getLogger("ragloop.llm.anthropic")
+
+
+def _transient_errors() -> tuple:
+    """Anthropic exception types worth retrying, tolerant of SDK versions."""
+    try:
+        import anthropic
+    except ImportError:  # pragma: no cover
+        return ()
+    names = ("APIConnectionError", "RateLimitError", "InternalServerError", "APITimeoutError")
+    return tuple(t for t in (getattr(anthropic, n, None) for n in names) if t is not None)
 
 
 class AnthropicProvider(LLMProvider):
     def __init__(
         self,
         model: str = "claude-sonnet-4-6",
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         max_tokens: int = 1024,
-        temperature: Optional[float] = None,
+        temperature: float | None = None,
+        max_retries: int = 3,
     ) -> None:
         # Imported lazily so the package installs without the SDK present
         # until a caller actually selects this provider.
@@ -35,9 +50,11 @@ class AnthropicProvider(LLMProvider):
         # Note: some newer Claude models reject a non-default temperature.
         # Leave it as None to omit the parameter entirely (recommended).
         self.temperature = temperature
+        self.max_retries = max_retries
+        self._transient = _transient_errors() or (Exception,)
 
     def complete(self, system: str, prompt: str) -> str:
-        kwargs = dict(
+        kwargs: dict[str, Any] = dict(
             model=self.model,
             max_tokens=self.max_tokens,
             system=system,
@@ -45,7 +62,12 @@ class AnthropicProvider(LLMProvider):
         )
         if self.temperature is not None:
             kwargs["temperature"] = self.temperature
-        resp = self._client.messages.create(**kwargs)
+        log.debug("anthropic complete: model=%s prompt_chars=%d", self.model, len(prompt))
+        resp = retry_call(
+            lambda: self._client.messages.create(**kwargs),
+            retries=self.max_retries,
+            exceptions=self._transient,
+        )
         return "".join(
             block.text for block in resp.content if getattr(block, "type", None) == "text"
         )

@@ -6,9 +6,8 @@ ready ``RagLoop``.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .engine import Deps, RagLoop
 from .llm.base import LLMProvider
@@ -18,17 +17,18 @@ from .retrieval.base import Retriever
 @dataclass
 class Config:
     llm_provider: str = "anthropic"
-    llm: Dict[str, Any] = field(default_factory=dict)
+    llm: dict[str, Any] = field(default_factory=dict)
     retriever_backend: str = "chroma"
-    retriever: Dict[str, Any] = field(default_factory=dict)
+    retriever: dict[str, Any] = field(default_factory=dict)
     top_k: int = 5
     max_attempts: int = 2
+    critic_fail_closed: bool = False
 
     @staticmethod
-    def from_yaml(path: str) -> "Config":
+    def from_yaml(path: str) -> Config:
         import yaml
 
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
         return Config(
             llm_provider=data.get("llm_provider", "anthropic"),
@@ -37,6 +37,7 @@ class Config:
             retriever=data.get("retriever", {}),
             top_k=int(data.get("top_k", 5)),
             max_attempts=int(data.get("max_attempts", 2)),
+            critic_fail_closed=bool(data.get("critic_fail_closed", False)),
         )
 
 
@@ -66,9 +67,9 @@ def _build_retriever(cfg: Config) -> Retriever:
     )
 
 
-def build_from_config(path: Optional[str] = None, cfg: Optional[Config] = None) -> RagLoop:
+def build_from_config(path: str | None = None, cfg: Config | None = None) -> RagLoop:
     cfg = cfg or (Config.from_yaml(path) if path else Config())
     llm = _build_llm(cfg)
     retriever = _build_retriever(cfg)
-    deps = Deps(retriever=retriever, llm=llm, k=cfg.top_k)
+    deps = Deps(retriever=retriever, llm=llm, k=cfg.top_k, fail_closed=cfg.critic_fail_closed)
     return RagLoop(deps, max_attempts=cfg.max_attempts)

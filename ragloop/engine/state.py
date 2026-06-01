@@ -6,15 +6,15 @@ what bounds the self-correction loop so it can't run forever.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, TypedDict
+from typing import Any, TypedDict
 
 
 class GraphState(TypedDict, total=False):
     query: str
-    subtasks: List[str]
-    retrieved: List[Dict[str, Any]]  # serialized Document dicts
+    subtasks: list[str]
+    retrieved: list[dict[str, Any]]  # serialized Document dicts
     answer: str
-    grade: Dict[str, Any]            # {"grounded": bool, "reason": str}
+    grade: dict[str, Any]            # {"grounded": bool, "reason": str}
     feedback: str                    # critic note fed back into retrieval
     attempts: int
     max_attempts: int

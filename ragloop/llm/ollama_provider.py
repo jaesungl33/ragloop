@@ -11,11 +11,14 @@ model first, e.g. ``ollama pull llama3.2:3b``.
 from __future__ import annotations
 
 import json
+import logging
 import urllib.error
 import urllib.request
-from typing import Optional
 
+from ._retry import retry_call
 from .base import LLMProvider
+
+log = logging.getLogger("ragloop.llm.ollama")
 
 
 class OllamaProvider(LLMProvider):
@@ -23,16 +26,28 @@ class OllamaProvider(LLMProvider):
         self,
         model: str = "llama3.2:3b",
         host: str = "http://localhost:11434",
-        temperature: Optional[float] = 0.0,
+        temperature: float | None = 0.0,
         timeout: float = 120.0,
+        max_retries: int = 2,
     ) -> None:
         self.model = model
         self.host = host.rstrip("/")
         self.temperature = temperature
         self.timeout = timeout
+        self.max_retries = max_retries
+
+    def _post(self, payload: dict) -> dict:
+        req = urllib.request.Request(
+            f"{self.host}/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
 
     def complete(self, system: str, prompt: str) -> str:
-        payload = {
+        payload: dict = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system},
@@ -43,16 +58,14 @@ class OllamaProvider(LLMProvider):
         if self.temperature is not None:
             payload["options"] = {"temperature": self.temperature}
 
-        req = urllib.request.Request(
-            f"{self.host}/api/chat",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        log.debug("ollama complete: model=%s prompt_chars=%d", self.model, len(prompt))
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.URLError as exc:  # pragma: no cover - network path
+            body = retry_call(
+                lambda: self._post(payload),
+                retries=self.max_retries,
+                exceptions=(urllib.error.URLError, TimeoutError),
+            )
+        except (urllib.error.URLError, TimeoutError) as exc:  # pragma: no cover - network
             raise RuntimeError(
                 f"Could not reach Ollama at {self.host}. Is `ollama serve` running "
                 f"and the model '{self.model}' pulled? Original error: {exc}"

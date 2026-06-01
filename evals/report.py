@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
@@ -33,25 +32,25 @@ _COL_W = 24
 _VAL_W = 11
 
 
-def _avg(results: list[dict], key: str) -> Optional[float]:
+def _avg(results: list[dict], key: str) -> float | None:
     vals = [r[key] for r in results if r.get(key) is not None]
     return sum(vals) / len(vals) if vals else None
 
 
-def _decline_rate(results: list[dict], answerable: bool) -> Optional[float]:
+def _decline_rate(results: list[dict], answerable: bool) -> float | None:
     """Fraction of {answerable|unanswerable} questions the system declined."""
     subset = [r for r in results if r.get("answerable", True) is answerable]
     declined = [1.0 if r.get("declined") else 0.0 for r in subset]
     return sum(declined) / len(declined) if declined else None
 
 
-def _fmt(val: Optional[float], precision: int = 2) -> str:
+def _fmt(val: float | None, precision: int = 2) -> str:
     if val is None:
         return "N/A"
     return f"{val:.{precision}f}"
 
 
-def _delta(b: Optional[float], r: Optional[float], higher_better: bool) -> str:
+def _delta(b: float | None, r: float | None, higher_better: bool) -> str:
     if b is None or r is None:
         return "N/A"
     diff = r - b

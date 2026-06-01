@@ -8,12 +8,15 @@ hardwired.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 from ..llm.base import LLMProvider
 from ..retrieval.base import Document, Retriever
 from .state import GraphState
+
+log = logging.getLogger("ragloop.engine")
 
 
 @dataclass
@@ -21,6 +24,10 @@ class Deps:
     retriever: Retriever
     llm: LLMProvider
     k: int = 5
+    # When the critic's grade can't be parsed: fail open (accept, grounded=True)
+    # or fail closed (reject, grounded=False -> retry / honest failure). Open is
+    # the friendlier default; closed is the safer choice for high-stakes use.
+    fail_closed: bool = False
 
 
 def _parse_json(text: str, default: Any) -> Any:
@@ -45,7 +52,7 @@ def _parse_json(text: str, default: Any) -> Any:
 
 # --- Nodes -----------------------------------------------------------------
 
-def plan(state: GraphState, deps: Deps) -> Dict[str, Any]:
+def plan(state: GraphState, deps: Deps) -> dict[str, Any]:
     system = (
         "You decompose a user question into 1-4 concrete retrieval sub-tasks. "
         "Simple questions get one sub-task. Respond ONLY with a JSON array of "
@@ -55,12 +62,14 @@ def plan(state: GraphState, deps: Deps) -> Dict[str, Any]:
     subtasks = _parse_json(raw, default=[state["query"]])
     if not isinstance(subtasks, list) or not subtasks:
         subtasks = [state["query"]]
-    return {"subtasks": [str(s) for s in subtasks][:4]}
+    subtasks = [str(s) for s in subtasks][:4]
+    log.debug("plan: %d sub-task(s): %s", len(subtasks), subtasks)
+    return {"subtasks": subtasks}
 
 
-def retrieve(state: GraphState, deps: Deps) -> Dict[str, Any]:
+def retrieve(state: GraphState, deps: Deps) -> dict[str, Any]:
     """Agentic step: pick a strategy per sub-task, blend lexical + semantic."""
-    seen: Dict[str, Document] = {}
+    seen: dict[str, Document] = {}
     feedback = state.get("feedback", "")
     # Always search the original question alongside the planner's sub-tasks, so
     # decomposition can only *add* recall, never lose the chunk a direct search
@@ -82,16 +91,18 @@ def retrieve(state: GraphState, deps: Deps) -> Dict[str, Any]:
             full = deps.retriever.get_chunk(doc.id)
             if full:
                 seen[full.id] = full
+    log.debug("retrieve: %d unique doc(s) over %d task(s)%s",
+              len(seen), len(tasks), " (+full-chunk widen)" if feedback else "")
     return {"retrieved": [d.to_dict() for d in seen.values()]}
 
 
-def fuse(state: GraphState, deps: Deps) -> Dict[str, Any]:
+def fuse(state: GraphState, deps: Deps) -> dict[str, Any]:
     """Deduplicate, rank by score, and trim to a diverse top set (MMR-lite)."""
     docs = state.get("retrieved", [])
     # Sort by score desc (None last).
     docs = sorted(docs, key=lambda d: (d.get("score") is not None, d.get("score") or 0), reverse=True)
     # Simple diversity pass: drop near-identical text prefixes.
-    kept: List[Dict[str, Any]] = []
+    kept: list[dict[str, Any]] = []
     prefixes: set[str] = set()
     for d in docs:
         prefix = (d.get("text") or "")[:120]
@@ -104,7 +115,7 @@ def fuse(state: GraphState, deps: Deps) -> Dict[str, Any]:
     return {"retrieved": kept}
 
 
-def generate(state: GraphState, deps: Deps) -> Dict[str, Any]:
+def generate(state: GraphState, deps: Deps) -> dict[str, Any]:
     context_blocks = []
     for d in state.get("retrieved", []):
         context_blocks.append(f"[source:{d['id']}] {d['text']}")
@@ -119,7 +130,7 @@ def generate(state: GraphState, deps: Deps) -> Dict[str, Any]:
     return {"answer": answer}
 
 
-def critique(state: GraphState, deps: Deps) -> Dict[str, Any]:
+def critique(state: GraphState, deps: Deps) -> dict[str, Any]:
     context = "\n\n".join(
         f"[source:{d['id']}] {d['text']}" for d in state.get("retrieved", [])
     )
@@ -132,9 +143,17 @@ def critique(state: GraphState, deps: Deps) -> Dict[str, Any]:
         f"Sources:\n{context}\n\nQuestion: {state['query']}\n\nAnswer:\n{state.get('answer', '')}"
     )
     raw = deps.llm.complete(system, prompt)
-    grade = _parse_json(raw, default={"grounded": True, "reason": "unparseable grade; accepted"})
+    # On an unparseable grade, honor the configured failure mode.
+    default_grade = (
+        {"grounded": False, "reason": "could not parse grade; failing closed"}
+        if deps.fail_closed
+        else {"grounded": True, "reason": "could not parse grade; accepted"}
+    )
+    grade = _parse_json(raw, default=default_grade)
     attempts = state.get("attempts", 0) + 1
     feedback = "" if grade.get("grounded") else grade.get("reason", "answer not grounded")
+    log.debug("critique: grounded=%s attempt=%d reason=%r",
+              grade.get("grounded"), attempts, grade.get("reason"))
     return {"grade": grade, "attempts": attempts, "feedback": feedback}
 
 

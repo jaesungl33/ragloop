@@ -8,8 +8,6 @@ interface stays identical, so the engine is unaffected.
 """
 from __future__ import annotations
 
-from typing import List, Optional
-
 from .base import Document, Retriever
 
 
@@ -17,7 +15,7 @@ class ChromaRetriever(Retriever):
     def __init__(
         self,
         collection: str = "ragloop",
-        persist_dir: Optional[str] = None,
+        persist_dir: str | None = None,
     ) -> None:
         import chromadb
 
@@ -30,7 +28,7 @@ class ChromaRetriever(Retriever):
         # real deployment to match your domain.
         self._col = self._client.get_or_create_collection(name=collection)
 
-    def add(self, documents: List[Document]) -> None:
+    def add(self, documents: list[Document]) -> None:
         if not documents:
             return
         # Chroma rejects empty metadata dicts, so guarantee every record carries
@@ -41,29 +39,30 @@ class ChromaRetriever(Retriever):
             metadatas=[{"doc_id": d.id, **(d.metadata or {})} for d in documents],
         )
 
-    def _to_docs(self, res, with_distance: bool) -> List[Document]:
-        out: List[Document] = []
+    def _to_docs(self, res, with_distance: bool) -> list[Document]:
+        out: list[Document] = []
         ids = (res.get("ids") or [[]])[0]
         docs = (res.get("documents") or [[]])[0]
         metas = (res.get("metadatas") or [[]])[0]
         dists = (res.get("distances") or [[]])[0] if with_distance else [None] * len(ids)
         for i, _id in enumerate(ids):
+            dist = dists[i]
             out.append(
                 Document(
                     id=_id,
                     text=docs[i] if i < len(docs) else "",
-                    metadata=metas[i] if i < len(metas) else {},
+                    metadata=dict(metas[i]) if i < len(metas) else {},
                     # Convert distance to a similarity-style score (higher = better).
-                    score=(1.0 - dists[i]) if dists[i] is not None else None,
+                    score=(1.0 - dist) if dist is not None else None,
                 )
             )
         return out
 
-    def semantic_search(self, query: str, k: int = 5) -> List[Document]:
+    def semantic_search(self, query: str, k: int = 5) -> list[Document]:
         res = self._col.query(query_texts=[query], n_results=k)
         return self._to_docs(res, with_distance=True)
 
-    def keyword_search(self, query: str, k: int = 5) -> List[Document]:
+    def keyword_search(self, query: str, k: int = 5) -> list[Document]:
         res = self._col.query(
             query_texts=[query],
             n_results=k,
@@ -71,11 +70,11 @@ class ChromaRetriever(Retriever):
         )
         return self._to_docs(res, with_distance=True)
 
-    def get_chunk(self, doc_id: str) -> Optional[Document]:
+    def get_chunk(self, doc_id: str) -> Document | None:
         res = self._col.get(ids=[doc_id])
         ids = res.get("ids") or []
         if not ids:
             return None
         docs = res.get("documents") or [""]
         metas = res.get("metadatas") or [{}]
-        return Document(id=ids[0], text=docs[0], metadata=metas[0])
+        return Document(id=ids[0], text=docs[0], metadata=dict(metas[0]))

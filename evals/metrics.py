@@ -17,7 +17,7 @@ rate** (fraction of *answerable* questions wrongly declined).
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Sequence
+from collections.abc import Sequence
 
 # Phrases a model uses when it (correctly) refuses to answer from the sources.
 _DECLINE_PATTERNS = re.compile(
@@ -40,7 +40,7 @@ def declined(answer: str) -> bool:
     return bool(_DECLINE_PATTERNS.search(answer or ""))
 
 
-def retrieval_recall(retrieved_ids: Sequence[str], relevant_ids: Sequence[str]) -> Optional[float]:
+def retrieval_recall(retrieved_ids: Sequence[str], relevant_ids: Sequence[str]) -> float | None:
     """Fraction of gold chunks that appear in the retrieved set. None if no labels."""
     rel = set(relevant_ids)
     if not rel:
@@ -62,7 +62,7 @@ def _get_embedder():
     return _EMBEDDER
 
 
-def answer_similarity(answer: str, ground_truth: str) -> Optional[float]:
+def answer_similarity(answer: str, ground_truth: str) -> float | None:
     """Cosine similarity between answer and ground truth via a local MiniLM model.
 
     Returns a value in roughly [0, 1]. Falls back to ``None`` if embeddings are
@@ -81,7 +81,7 @@ def answer_similarity(answer: str, ground_truth: str) -> Optional[float]:
         return None
 
 
-def score_deterministic(results: List[dict], questions_by_text: dict) -> None:
+def score_deterministic(results: list[dict], questions_by_text: dict) -> None:
     """Mutate each result dict in place, adding deterministic metric fields."""
     for r in results:
         q = questions_by_text.get(r["question"], {})

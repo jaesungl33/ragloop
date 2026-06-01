@@ -24,7 +24,7 @@ mcp = ["mcp>=1.2"]
 # Convenience: everything needed to run the reference stack end to end.
 all = ["anthropic>=0.40", "chromadb>=0.5", "mcp>=1.2"]
 evals = ["ragas>=0.1", "deepeval>=0.21", "datasets>=2.18"]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
 
 [project.scripts]
 ragloop = "ragloop.cli:main"
@@ -36,3 +36,25 @@ Issues = "https://github.com/jaesungl33/ragloop/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ragloop"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv", "dist", "build"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, pyupgrade, flake8-bugbear
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # line length handled by the formatter, not enforced hard
+
+[tool.ruff.lint.per-file-ignores]
+"ragloop/engine/nodes.py" = ["E402"]
+"tests/*" = ["E402"]
+"evals/*" = ["E402"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true   # optional deps (anthropic, chromadb, langgraph, ragas)
+warn_unused_ignores = false
+no_implicit_optional = true
+files = ["ragloop"]

@@ -1,14 +1,21 @@
 # Copy to config.yaml and adjust. Secrets come from environment variables,
 # never from this file (keep credentials out of version control).
 
-llm_provider: anthropic
+llm_provider: anthropic   # 'anthropic' (hosted Claude) or 'ollama' (local, $0)
 llm:
   # Any current Claude model id. sonnet-4-6 is a good default balance of
   # cost and quality; use an opus model for harder reasoning. Omit
   # temperature for models that reject a non-default value.
   model: claude-sonnet-4-6
   max_tokens: 1024
+  max_retries: 3
   # api_key is read from ANTHROPIC_API_KEY if omitted (recommended).
+
+# Local, zero-cost alternative — requires `ollama serve` + a pulled model:
+# llm_provider: ollama
+# llm:
+#   model: llama3.2:3b
+#   host: http://localhost:11434
 
 retriever_backend: chroma
 retriever:
@@ -17,4 +24,6 @@ retriever:
   persist_dir: ./.chroma
 
 top_k: 5
-max_attempts: 2   # self-correction retries before returning best effort
+max_attempts: 2          # self-correction retries before returning best effort
+critic_fail_closed: false # true = treat an unparseable grade as NOT grounded
+                          # (safer for high-stakes use; false accepts and moves on)

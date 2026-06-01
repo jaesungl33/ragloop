@@ -9,16 +9,15 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 
-def _load_cfg(config: Optional[str]):
+def _load_cfg(config: str | None):
     from .config import Config
 
     return Config.from_yaml(config) if config else Config()
 
 
-def cmd_ingest(path: str, config: Optional[str]) -> None:
+def cmd_ingest(path: str, config: str | None) -> None:
     from .config import _build_retriever
     from .retrieval.base import Document
 
@@ -36,7 +35,7 @@ def cmd_ingest(path: str, config: Optional[str]) -> None:
     print(f"Ingested {len(docs)} chunks from {len(files)} file(s).")
 
 
-def cmd_ask(question: str, config: Optional[str]) -> None:
+def cmd_ask(question: str, config: str | None) -> None:
     from .config import build_from_config
 
     loop = build_from_config(path=config)
@@ -45,7 +44,7 @@ def cmd_ask(question: str, config: Optional[str]) -> None:
     print(f"\ngrounded={result['grounded']}  attempts={result['attempts']}  sources={result['sources']}")
 
 
-def cmd_serve(config: Optional[str]) -> None:
+def cmd_serve(config: str | None) -> None:
     from .config import Config
     from .mcp.server import build_server
 
@@ -53,12 +52,12 @@ def cmd_serve(config: Optional[str]) -> None:
     build_server(cfg).run()
 
 
-def _resolve_config(args) -> Optional[str]:
+def _resolve_config(args) -> str | None:
     """--config may appear before or after the subcommand; fall back to env."""
     return getattr(args, "config", None) or os.environ.get("RAGLOOP_CONFIG")
 
 
-def main(argv: Optional[list] = None) -> int:
+def main(argv: list | None = None) -> int:
     import argparse
 
     # SUPPRESS on subparsers so a root-level --config is not cleared when the

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
 
 from quickstart import InMemoryRetriever  # noqa: E402
 
-from ragloop import Deps, Document, LLMProvider, Retriever, RagLoop  # noqa: E402
+from ragloop import Deps, Document, LLMProvider, RagLoop, Retriever  # noqa: E402
 from ragloop.engine.nodes import _parse_json, fuse, retrieve, route_after_critic  # noqa: E402
 
 
@@ -61,6 +61,29 @@ def test_retry_is_bounded_when_never_grounded():
     result = loop.ask("What is the refund window?")
     assert result["attempts"] == 2          # capped
     assert result["grounded"] is False      # honestly reports it never grounded
+
+
+class _UnparseableGradeLLM(LLMProvider):
+    """Critic always returns non-JSON, exercising the fail-open/closed path."""
+
+    def complete(self, system: str, prompt: str) -> str:
+        if "decompose" in system:
+            return '["refund policy"]'
+        if "grade" in system:
+            return "the answer looks fine to me"  # not JSON
+        return "Refunds are accepted within 30 days [source:policy:0]."
+
+
+def test_critic_fail_open_accepts_unparseable_grade():
+    loop = RagLoop(Deps(retriever=_retriever(), llm=_UnparseableGradeLLM(), k=3), max_attempts=2)
+    assert loop.ask("refund?")["grounded"] is True   # fail_closed defaults to False
+
+
+def test_critic_fail_closed_rejects_unparseable_grade():
+    deps = Deps(retriever=_retriever(), llm=_UnparseableGradeLLM(), k=3, fail_closed=True)
+    result = RagLoop(deps, max_attempts=2).ask("refund?")
+    assert result["grounded"] is False               # honest failure, not silent accept
+    assert result["attempts"] == 2                   # retried, then stopped at budget
 
 
 def test_parse_json_tolerates_fences_and_prose():
