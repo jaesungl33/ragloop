@@ -5,6 +5,35 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-01
+
+### Added
+
+- **Ollama provider** (`llm_provider: ollama`) — run the full loop on a local
+  model for zero API cost. Stdlib-only, no new dependency.
+- **Retry/backoff** on transient provider errors (both Anthropic and Ollama),
+  plus structured `logging` through the engine for observability.
+- **Configurable critic failure mode** — `critic_fail_closed` treats an
+  unparseable grade as not-grounded (safer for high-stakes use).
+- **Deterministic eval metrics** (`evals/metrics.py`): retrieval recall@k,
+  hallucination-resistance / false-decline rate, and local-embedding answer
+  similarity — no LLM judge, reproducible at $0. Four out-of-corpus questions
+  added to the eval set. Published benchmark table in the README.
+- `py.typed` marker so downstream users get the type hints.
+- Tooling: `ruff` + `mypy` (both clean) and a lint/type CI job; coverage
+  reporting via `pytest-cov`.
+
+### Fixed
+
+- `ChromaRetriever.add()` no longer crashes on documents with empty metadata.
+- `retrieve()` now always searches the original query alongside the planner's
+  sub-tasks, so decomposition can't lose a chunk a direct search would find.
+
+### Changed
+
+- Test suite expanded from 3 to 35 tests (~87% coverage), including the
+  self-correcting retry loop, both providers, Chroma, config, and CLI.
+
 ## [0.1.0] - 2026-06-01
 
 Initial public release.
@@ -35,4 +64,5 @@ Initial public release.
 - Apache-2.0 licensed; CI across Python 3.10–3.12; PyPI Trusted Publishing on
   GitHub Releases.
 
+[0.2.0]: https://github.com/jaesungl33/ragloop/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jaesungl33/ragloop/releases/tag/v0.1.0

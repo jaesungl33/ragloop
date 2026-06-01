@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragloop-agentic"
-version = "0.1.0"
+version = "0.2.0"
 description = "A pluggable, self-correcting agentic RAG framework with MCP-native retrieval."
 readme = "README.md"
 license = "Apache-2.0"
@@ -24,7 +24,7 @@ mcp = ["mcp>=1.2"]
 # Convenience: everything needed to run the reference stack end to end.
 all = ["anthropic>=0.40", "chromadb>=0.5", "mcp>=1.2"]
 evals = ["ragas>=0.1", "deepeval>=0.21", "datasets>=2.18"]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.10"]
 
 [project.scripts]
 ragloop = "ragloop.cli:main"
@@ -58,3 +58,10 @@ ignore_missing_imports = true   # optional deps (anthropic, chromadb, langgraph,
 warn_unused_ignores = false
 no_implicit_optional = true
 files = ["ragloop"]
+
+[tool.coverage.run]
+source = ["ragloop"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if __name__ == .__main__.:"]

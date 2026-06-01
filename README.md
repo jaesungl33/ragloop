@@ -2,6 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/ragloop-agentic.svg)](https://pypi.org/project/ragloop-agentic/)
 [![CI](https://github.com/jaesungl33/ragloop/actions/workflows/ci.yml/badge.svg)](https://github.com/jaesungl33/ragloop/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/jaesungl33/ragloop/branch/main/graph/badge.svg)](https://codecov.io/gh/jaesungl33/ragloop)
 [![Python](https://img.shields.io/pypi/pyversions/ragloop-agentic.svg)](https://pypi.org/project/ragloop-agentic/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
