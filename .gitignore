@@ -1,8 +1,29 @@
+# Python
 __pycache__/
 *.pyc
-.env
-.chroma/
+*.egg-info/
 dist/
 build/
-*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets & local config
+.env
+# Local config copied from examples/config.example.yaml
+config.yaml
+
+# Runtime / local artifacts
+.chroma/
+.chroma_demo/
 .pytest_cache/
+.deepeval/
+.DS_Store
+evals/results.json
+sample-docs/
+
+# Editor / agent local settings
+.claude/
+.cursor/

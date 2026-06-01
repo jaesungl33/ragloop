@@ -1,5 +1,10 @@
 # ragloop
 
+[![PyPI](https://img.shields.io/pypi/v/ragloop-agentic.svg)](https://pypi.org/project/ragloop-agentic/)
+[![CI](https://github.com/jaesungl33/ragloop/actions/workflows/ci.yml/badge.svg)](https://github.com/jaesungl33/ragloop/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/pypi/pyversions/ragloop-agentic.svg)](https://pypi.org/project/ragloop-agentic/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 A pluggable, self-correcting **agentic RAG** framework. Point it at your
 documents, your vector store, and your LLM, and it answers questions with
 inline citations — checking its own work and retrying when an answer isn't
@@ -34,10 +39,14 @@ corpus directly with access control enforced server-side.
 ## Install
 
 ```bash
-pip install -e ".[all]"        # engine + Anthropic + Chroma + MCP
-# or pick pieces: pip install -e ".[anthropic,chroma]"
+pip install "ragloop-agentic[all]"            # engine + Anthropic + Chroma + MCP
+# or pick pieces: pip install "ragloop-agentic[anthropic,chroma]"
+# from source:    pip install -e ".[all]"
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+> The distribution is published as **`ragloop-agentic`**; the import name stays
+> `ragloop` (`from ragloop import build_from_config`).
 
 ## Quick start
 
@@ -62,6 +71,45 @@ Run the dependency-free demo to see the loop without any API keys:
 python examples/quickstart.py
 pytest        # the same fakes power the test suite
 ```
+
+## Live demo
+
+Clone the repo, install the full stack, set your API key, and run the scripted demo against a small fictional policy corpus (`examples/corpus/`):
+
+```bash
+pip install -e ".[all]"
+export ANTHROPIC_API_KEY=sk-ant-...
+python examples/demo.py
+```
+
+The script ingests five policy documents into Chroma (persisted under `.chroma_demo/`), then asks two questions:
+
+1. **In-corpus** — *"What is the refund window?"* — expects a cited answer grounded in the refund policy (e.g. a **30-day** window) with `grounded=True`.
+2. **Out-of-corpus** — *"Do you offer financing?"* — expects the model to say the sources do not cover financing rather than inventing terms, typically with `grounded=True` on a decline-style answer.
+
+Each question prints the answer plus metadata:
+
+```
+============================================================
+In-corpus: What is the refund window?
+============================================================
+
+Answer:
+Customers may request a refund within 30 days of delivery [source:refunds:0].
+
+grounded=True  attempts=1  sources=['refunds:0', ...]
+
+============================================================
+Out-of-corpus: Do you offer financing?
+============================================================
+
+Answer:
+The provided sources do not mention financing or payment plans.
+
+grounded=True  attempts=1  sources=[...]
+```
+
+Exact wording varies by model run; the important part is grounded, cited answers for in-corpus questions and an honest decline for out-of-corpus ones.
 
 ## Serve retrieval over MCP
 

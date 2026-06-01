@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ragloop"
+name = "ragloop-agentic"
 version = "0.1.0"
 description = "A pluggable, self-correcting agentic RAG framework with MCP-native retrieval."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
-authors = [{ name = "ragloop contributors" }]
+authors = [{ name = "Lee Jae Sung", email = "thanh.jaesunglee@gmail.com" }]
 keywords = ["rag", "llm", "agentic", "mcp", "langgraph", "retrieval"]
 dependencies = [
     "langgraph>=0.2",
@@ -30,8 +30,9 @@ dev = ["pytest>=8"]
 ragloop = "ragloop.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/your-org/ragloop"
-Issues = "https://github.com/your-org/ragloop/issues"
+Homepage = "https://github.com/jaesungl33/ragloop"
+Repository = "https://github.com/jaesungl33/ragloop"
+Issues = "https://github.com/jaesungl33/ragloop/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ragloop"]
