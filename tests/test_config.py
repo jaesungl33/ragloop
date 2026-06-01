@@ -41,6 +41,7 @@ def test_build_llm_ollama_does_not_connect():
 
 
 def test_build_llm_anthropic_requires_key(monkeypatch):
+    pytest.importorskip("anthropic")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(RuntimeError):
         _build_llm(Config(llm_provider="anthropic"))
