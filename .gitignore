@@ -21,6 +21,9 @@ config.yaml
 .pytest_cache/
 .deepeval/
 .DS_Store
+.coverage
+coverage.xml
+htmlcov/
 evals/results.json
 sample-docs/
 # asciinema recording source (regenerate from docs/demo.gif workflow)
