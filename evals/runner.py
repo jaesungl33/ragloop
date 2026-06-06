@@ -34,7 +34,7 @@ sys.path.insert(0, str(_ROOT / "examples"))
 
 from ragloop import Deps, LLMProvider, RagLoop  # noqa: E402
 
-from .baseline import BaselineRAG  # noqa: E402
+from .baseline import BaselineRAG, NaiveRAG  # noqa: E402
 from .corpus import DOCS, QUESTIONS  # noqa: E402
 
 _CITE_RE = re.compile(r"\[source:([^\]]+)\]")
@@ -310,6 +310,12 @@ def main() -> None:
         help="'standard' = small clean corpus; 'hard' = adds distractors and "
         "retrieval-hard / trap questions that stress the self-correction loop.",
     )
+    parser.add_argument(
+        "--naive-baseline",
+        action="store_true",
+        help="Compare against a NAIVE RAG baseline (no grounding prompt) instead "
+        "of the careful grounded one -- the honest ablation for the critic's value.",
+    )
     args = parser.parse_args()
     provider = "offline" if args.offline else args.llm
 
@@ -334,9 +340,10 @@ def main() -> None:
     inner_llm = _build_llm(provider, args.model)
     tracing_llm = TracingLLM(inner_llm)
 
-    # --- baseline ---
-    baseline_pipeline = BaselineRAG(retriever=retriever, llm=tracing_llm, k=5)
-    print("[runner] running baseline ...")
+    # --- baseline (grounded by default, or naive for the ablation) ---
+    baseline_cls = NaiveRAG if args.naive_baseline else BaselineRAG
+    baseline_pipeline = baseline_cls(retriever=retriever, llm=tracing_llm, k=5)
+    print(f"[runner] running baseline ({baseline_cls.__name__}) ...")
     baseline_results = run_pipeline(
         "baseline", baseline_pipeline.ask, questions, tracing_llm, retriever
     )
