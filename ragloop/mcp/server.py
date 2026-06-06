@@ -2,9 +2,12 @@
 
 Running this serves ``keyword_search``, ``semantic_search`` and ``chunk_read``
 over MCP so any MCP-capable client (an agent, an IDE, another service) can
-query the corpus directly, with access control enforced here on the server
-side rather than baked into each client. This is the "let the agent pull the
-data" pattern.
+query the corpus directly. Retrieval lives in one server-side surface -- the
+natural place to add auth or access filtering -- rather than being reimplemented
+in each client. This is the "let the agent pull the data" pattern.
+
+Note: this reference server does not implement authentication itself; add it
+around ``build_server`` (or in front of the transport) for production use.
 """
 from __future__ import annotations
 

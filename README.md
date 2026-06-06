@@ -49,8 +49,10 @@ back-edge *changes the final answer* depends on your model and data — see
 [Benchmarks](#benchmarks--does-the-self-correction-actually-help) for an honest
 measurement, not a marketing claim.
 
-Retrieval is also exposed over **MCP**, so any MCP-capable client can query your
-corpus directly with access control enforced server-side.
+Retrieval is also exposed over **MCP** (`keyword_search`, `semantic_search`,
+`chunk_read`), so any MCP-capable client can query your corpus through one
+server-side surface — the natural place to add auth or access filtering later,
+rather than reimplementing it in every client.
 
 ## Install
 
@@ -200,12 +202,13 @@ custom retriever and provider in ~30 lines.
 
 ```
 ragloop/
-  llm/          LLMProvider interface + Anthropic reference
+  llm/          LLMProvider interface + Anthropic & Ollama references
   retrieval/    Retriever interface + Chroma reference
   engine/       state, nodes (plan/retrieve/fuse/generate/critique), graph
   mcp/          MCP server exposing the retrieval tools
   config.py     YAML + env wiring
   cli.py        ingest / ask / serve
+evals/          reproducible baseline-vs-loop benchmark harness
 ```
 
 ## Roadmap
@@ -215,6 +218,11 @@ ragloop/
 - Reference backends for pgvector and OpenAI
 - Streaming answers
 
+## Contributing
+
+Issues and PRs welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) and
+[`GOOD_FIRST_ISSUES.md`](GOOD_FIRST_ISSUES.md) for starting points.
+
 ## License
 
-Apache-2.0. Contributions welcome — see issues.
+Apache-2.0.
