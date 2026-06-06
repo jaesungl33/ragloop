@@ -18,6 +18,17 @@ def test_declined_false_for_real_answers():
     assert not declined("Standard shipping is free on orders over $50.")
 
 
+def test_declined_ignores_incidental_negation_in_real_answers():
+    # Regression: a complete answer that happens to contain "not covered"
+    # must NOT be counted as a decline.
+    answer = (
+        "Tents are covered under a two-year warranty [source:warranty:0]. "
+        "Normal wear, misuse, and damage from accidents are not covered. "
+        "Contact support with photos to start a claim."
+    )
+    assert not declined(answer)
+
+
 def test_retrieval_recall():
     assert retrieval_recall(["a", "b", "c"], ["a"]) == 1.0
     assert retrieval_recall(["x", "y"], ["a", "b"]) == 0.0

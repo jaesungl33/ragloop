@@ -303,19 +303,32 @@ def main() -> None:
         action="store_true",
         help="Also run the LLM-judged RAGAS/deepeval metrics (needs OPENAI/ANTHROPIC key; costs money).",
     )
+    parser.add_argument(
+        "--scenario",
+        choices=["standard", "hard"],
+        default="standard",
+        help="'standard' = small clean corpus; 'hard' = adds distractors and "
+        "retrieval-hard / trap questions that stress the self-correction loop.",
+    )
     args = parser.parse_args()
     provider = "offline" if args.offline else args.llm
+
+    if args.scenario == "hard":
+        from .hard import HARD_DOCS as docs  # noqa: PLC0415
+        from .hard import HARD_QUESTIONS as questions  # noqa: PLC0415
+    else:
+        docs, questions = DOCS, QUESTIONS
 
     # --- shared retriever: real Chroma vector store, free local embeddings ---
     from ragloop.retrieval.chroma_retriever import ChromaRetriever  # noqa: PLC0415
 
-    retriever = ChromaRetriever(collection="ragloop_evals")
-    retriever.add(DOCS)
-    questions_by_text = {q["question"]: q for q in QUESTIONS}
-    n_unans = sum(1 for q in QUESTIONS if not q.get("answerable", True))
+    retriever = ChromaRetriever(collection=f"ragloop_evals_{args.scenario}")
+    retriever.add(docs)
+    questions_by_text = {q["question"]: q for q in questions}
+    n_unans = sum(1 for q in questions if not q.get("answerable", True))
     print(
-        f"[runner] loaded {len(DOCS)} chunks, {len(QUESTIONS)} questions "
-        f"({n_unans} out-of-corpus) into Chroma"
+        f"[runner] scenario={args.scenario}: loaded {len(docs)} chunks, "
+        f"{len(questions)} questions ({n_unans} out-of-corpus) into Chroma"
     )
 
     inner_llm = _build_llm(provider, args.model)
@@ -325,14 +338,14 @@ def main() -> None:
     baseline_pipeline = BaselineRAG(retriever=retriever, llm=tracing_llm, k=5)
     print("[runner] running baseline ...")
     baseline_results = run_pipeline(
-        "baseline", baseline_pipeline.ask, QUESTIONS, tracing_llm, retriever
+        "baseline", baseline_pipeline.ask, questions, tracing_llm, retriever
     )
 
     # --- ragloop ---
     loop = RagLoop(Deps(retriever=retriever, llm=tracing_llm, k=5), max_attempts=2)
     print("[runner] running ragloop ...")
     ragloop_results = run_pipeline(
-        "ragloop", loop.ask, QUESTIONS, tracing_llm, retriever
+        "ragloop", loop.ask, questions, tracing_llm, retriever
     )
 
     # --- scoring (deterministic: always, no API cost) ---

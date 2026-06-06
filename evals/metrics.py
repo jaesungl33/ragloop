@@ -19,24 +19,34 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-# Phrases a model uses when it (correctly) refuses to answer from the sources.
+# A decline means the system says it *can't answer from the sources* — not an
+# incidental "X is not covered" inside an otherwise-complete answer. So we
+# require the refusal to be about the sources/information or the inability to
+# determine an answer, which avoids false positives on real answers.
 _DECLINE_PATTERNS = re.compile(
-    r"\b("
-    r"do(es)? not (contain|mention|cover|include|provide|specify|have)"
-    r"|no (information|mention|details?|reference)"
-    r"|not (mentioned|covered|provided|specified|available|found|listed)"
-    r"|cannot (find|answer|determine)|can't (find|answer)"
-    r"|don'?t have (information|details|enough)"
-    r"|unable to (answer|find)"
-    r"|isn'?t (mentioned|covered|in the sources)"
-    r"|the (provided )?sources? (do not|don'?t)"
-    r")\b",
+    r"(?:"
+    r"(?:sources?|information|context|provided (?:text|documents?|materials?|information))"
+    r"\s+(?:do(?:es)? not|don'?t|cannot)\s+"
+    r"(?:contain|mention|specify|include|provide|cover|address|indicate|state|say)"
+    r"|no (?:information|mention|reference|details?)\s+(?:about|on|regarding|for|of)"
+    r"|not (?:enough|sufficient) information"
+    r"|cannot (?:determine|find|answer|provide|tell|confirm)"
+    r"|can'?t (?:determine|find|answer|tell)"
+    r"|unable to (?:determine|answer|find|provide)"
+    r"|(?:do(?:es)? not|don'?t) have (?:enough |sufficient )?(?:information|details)"
+    r"|is not (?:specified|mentioned|stated|provided) in the (?:sources?|provided|context|information)"
+    r")",
     re.IGNORECASE,
 )
 
 
 def declined(answer: str) -> bool:
-    """Heuristic: did the answer refuse / say the sources don't cover it?"""
+    """Heuristic: did the answer say it can't answer from the sources?
+
+    Detects genuine refusals ("the sources do not specify...", "I cannot
+    determine...") while ignoring incidental negations inside real answers
+    (e.g. "accidents are not covered").
+    """
     return bool(_DECLINE_PATTERNS.search(answer or ""))
 
 
