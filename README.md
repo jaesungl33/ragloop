@@ -26,6 +26,12 @@ without touching the engine:
   reference providers; add OpenAI, Bedrock, or any model the same way.
 - **Your corpus, models, and retry budget** — all config-driven.
 
+It's a **reference implementation** you can read end to end and extend — not a
+black box — and it ships with a reproducible eval harness so you can measure
+whether the self-correction loop actually helps on *your* data instead of taking
+the claim on faith. (Spoiler from my own runs: with a modern model on clean data,
+often it doesn't — [see Benchmarks](#benchmarks--does-the-self-correction-actually-help).)
+
 ## How it works
 
 ```
@@ -38,7 +44,10 @@ retrieval strategy (lexical vs. semantic vs. full-chunk read), fuses and ranks
 the evidence, generates a cited answer, then **grades whether that answer is
 fully supported**. If not, it feeds the critique back into retrieval and tries
 again — bounded by a retry budget. The single back-edge from the critic is what
-distinguishes this from a one-shot RAG pipeline.
+architecturally distinguishes this from a one-shot RAG pipeline. Whether that
+back-edge *changes the final answer* depends on your model and data — see
+[Benchmarks](#benchmarks--does-the-self-correction-actually-help) for an honest
+measurement, not a marketing claim.
 
 Retrieval is also exposed over **MCP**, so any MCP-capable client can query your
 corpus directly with access control enforced server-side.
@@ -118,44 +127,53 @@ grounded=True  attempts=1  sources=[...]
 
 Exact wording varies by model run; the important part is grounded, cited answers for in-corpus questions and an honest decline for out-of-corpus ones.
 
-## Benchmarks
+## Benchmarks — does the self-correction actually help?
 
-ragloop ships a reproducible eval harness (`evals/`) that runs a naive one-shot
-**baseline** (embed → top-k → generate) against the full **self-correcting
-loop** over a labelled policy corpus — 14 questions, 4 of them deliberately
-*out-of-corpus*. Scoring is **deterministic and label-based** (no LLM-as-judge),
-so anyone can reproduce it with **zero API cost** on a local model:
+Short answer, honestly: **on a clean corpus with a modern model, not measurably.**
+This section reports that rather than hiding it, because knowing *when* a
+technique helps is the whole point of building an eval harness.
+
+ragloop ships a reproducible harness (`evals/`) that runs one-shot baselines
+against the full loop over a labelled policy corpus. Scoring is **deterministic
+and label-based** (no LLM-as-judge), so anyone can reproduce it at **zero API
+cost** on a local model:
 
 ```bash
 pip install -e ".[evals,chroma]"
-ollama pull llama3.2:3b          # any local model works
-python -m evals.runner --llm ollama --model llama3.2:3b
+ollama pull qwen2.5:7b-instruct
+python -m evals.runner --llm ollama --model qwen2.5:7b-instruct --scenario hard
 ```
 
-Representative run (local `llama3.2:3b`, real Chroma retrieval):
+Representative run (`qwen2.5:7b`, "hard" corpus with distractor chunks, 16
+questions, real Chroma retrieval):
 
-| Metric | Baseline | RagLoop | What it means |
+| Metric | Grounded baseline | RagLoop | |
 |---|---:|---:|---|
-| **Hallucination resistance** | 1.00 | **1.00** | fraction of *unanswerable* questions correctly declined (↑) |
-| **False-decline rate** | 0.00 | **0.00** | answerable questions wrongly refused (↓) |
-| **Citation accuracy** | 1.00 | **1.00** | cited IDs that are actually in the retrieved set (↑) |
-| **Retrieval recall@k** | 1.00 | 0.90 | gold chunks surfaced (↑) |
-| **Answer similarity** | 0.78 | 0.78 | cosine vs. ground truth, local embeddings (↑) |
-| Avg latency (s) | 1.8 | 5.1 | wall-clock per question (↓) |
-| Avg token cost | 415 | 1203 | approx tokens per question (↓) |
-| Avg retries | 0.00 | 0.36 | extra loop iterations (↓) |
+| **Hallucination resistance** | 1.00 | 1.00 | fraction of *unanswerable* questions correctly declined (↑) |
+| **False-decline rate** | 0.10 | 0.10 | answerable questions wrongly refused (↓) |
+| **Citation accuracy** | 0.94 | 0.94 | cited IDs actually in the retrieved set (↑) |
+| **Retrieval recall@k** | 0.90 | 0.90 | gold chunks surfaced (↑) |
+| Avg latency (s) | 4.0 | 11.9 | wall-clock per question (↓) |
+| Avg token cost | 404 | 1320 | approx tokens per question (↓) |
 
-**Honest read of these numbers.** On a small, clean corpus both pipelines
-already resist hallucination perfectly and cite accurately — so here the loop's
-self-correction buys safety you can't see, at a real ~2.8× latency / ~2.9× token
-cost. The loop earns that cost on **noisier corpora, weaker retrieval, or
-higher-stakes grounding**, where a one-shot baseline *would* answer from a wrong
-chunk and the critic catches it. Building this benchmark also surfaced a real
-regression — the planner's decomposition could drop the chunk a direct search
-would find — which is now fixed (recall 0.80 → 0.90) and guarded by a test. The
-remaining recall gap (cross-query score comparability in fusion) is tracked as
-future work. See [`evals/README.md`](evals/README.md) for methodology and the
-LLM-judged RAGAS metrics (opt-in via `--judge`).
+**What this shows.** The two pipelines are statistically tied on every quality
+metric — and the loop costs ~3× the latency and tokens to get there. I ran the
+same comparison three ways (clean corpus; hard corpus with distractors; and
+against a **naive** baseline with *no* grounding prompt at all) and the result
+held every time: hallucination resistance stayed at 1.00 for both.
+
+The reason is worth stating plainly: **modern instruction-tuned models are
+cautious by default.** Even a 7B model with no grounding instruction declines to
+answer questions the sources don't cover — so the critic's safety net is
+*redundant* in this regime. (Building this also caught a false-positive bug in my
+own decline metric, now fixed and regression-tested.)
+
+**So when *does* the loop earn its cost?** When the model isn't doing this work
+for you: weak or unaligned models that *do* hallucinate, noisy or contradictory
+corpora where the right move is to reject a confident-looking wrong chunk, or
+multi-hop questions a single retrieval can't satisfy. ragloop is a clean place to
+*measure* that for your own data — `python -m evals.runner --help` for the
+scenarios, and [`evals/README.md`](evals/README.md) for methodology.
 
 ## Serve retrieval over MCP
 

@@ -29,6 +29,13 @@ python -m evals.runner --offline
 # Hosted model instead of local
 ANTHROPIC_API_KEY=sk-ant-... python -m evals.runner --llm anthropic
 
+# Harder corpus (distractor chunks + retrieval-hard / trap questions)
+python -m evals.runner --llm ollama --scenario hard
+
+# Ablation: compare against a NAIVE baseline (no grounding prompt) instead of
+# the careful grounded one — isolates how much the loop adds beyond the prompt
+python -m evals.runner --llm ollama --scenario hard --naive-baseline
+
 # Add the LLM-judged RAGAS/deepeval metrics (opt-in; needs an OpenAI/Anthropic
 # key and costs money — the judge fires many grading calls)
 python -m evals.runner --llm ollama --judge
@@ -36,6 +43,13 @@ python -m evals.runner --llm ollama --judge
 # Re-print the table from a previous run
 python -m evals.report [path/to/results.json]
 ```
+
+> **What these runs show:** with a modern instruction-tuned model, the loop and
+> the baseline tie on quality (both decline ungrounded questions by default), and
+> the loop costs ~3× latency. The self-correction earns its cost with weaker
+> models, noisier/contradictory corpora, or multi-hop retrieval. See the main
+> [README Benchmarks](../README.md#benchmarks--does-the-self-correction-actually-help)
+> section for the numbers and the honest read.
 
 Retrieval uses a **real Chroma vector store** with free local embeddings, so the
 retrieval metrics reflect a real index — not a toy. Results are written to

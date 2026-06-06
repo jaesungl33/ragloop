@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Harder eval scenario (`--scenario hard`) with distractor chunks and
+  retrieval-hard / trap questions, plus a naive-baseline ablation
+  (`--naive-baseline`) that isolates the loop's contribution from the prompt.
+
+### Changed
+
+- Benchmarks rewritten around an honest finding: with a modern instruction-tuned
+  model, the self-correcting loop *ties* a one-shot baseline on quality (both
+  decline ungrounded questions by default) at ~3× the cost. README claims
+  tempered to match the evidence; the loop's value is documented as conditional
+  (weak models, noisy corpora, multi-hop).
+
+### Fixed
+
+- `declined()` eval metric no longer counts incidental negations (e.g. "accidents
+  are not covered") inside complete answers as refusals.
+
 ## [0.2.0] - 2026-06-01
 
 ### Added

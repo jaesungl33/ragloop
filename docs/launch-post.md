@@ -1,104 +1,82 @@
-# ragloop: RAG that checks its own work
+# I built a self-correcting RAG loop — then measured whether it actually helps
 
-*Draft launch writeup — adapt for a blog post, Show HN, or the GitHub "About" section.*
+*Draft writeup — adapt for a blog post, Show HN, or r/LocalLLaMA. Put it in your
+own voice before posting.*
 
 ---
 
-## The one-line pitch
+## The hook
 
-**ragloop is a RAG framework with a back-edge.** When the model writes an
-answer, a critic grades whether every claim is actually supported by the
-retrieved sources. If it isn't, the critique is fed back into retrieval and the
-loop tries again — bounded by a retry budget. Classic linear RAG can't express
-that; ragloop is built around it.
+I built **ragloop**, an agentic RAG framework whose whole idea is a *back-edge*:
+after the model writes a cited answer, a critic grades whether every claim is
+actually supported by the retrieved sources, and if not, the critique is fed
+back into retrieval and it tries again. Classic linear RAG can't express that.
 
-## The problem
+Then I did the thing most "look at my framework" posts skip: **I built a
+reproducible benchmark and tested whether the self-correction actually changes
+the answer.** The honest result is more interesting than a win.
 
-Most RAG pipelines are a straight line: `retrieve → stuff into prompt →
-generate`. They retrieve once, answer once, and hope the chunks were good. When
-they weren't, the model fills the gap with something plausible and wrong — and
-nothing in the pipeline notices. You find out when a user does.
+## What the benchmark found
 
-The missing piece isn't a better embedding model. It's a **feedback loop**: a
-step that judges the answer against its evidence and can send the system back to
-look again.
+Across three setups — a clean policy corpus, a harder corpus seeded with
+distractor chunks, and an ablation against a *naive* baseline with no grounding
+prompt at all — the self-correcting loop **tied** the one-shot baseline on every
+quality metric (hallucination resistance, citation accuracy, retrieval recall),
+while costing about **3× the latency and tokens**.
 
-## How ragloop works
+Why? **Modern instruction-tuned models are cautious by default.** Even a 7B model
+with no instruction to stay grounded declines to answer questions the sources
+don't cover. So on clean data with a capable model, the critic's safety net is
+*redundant* — the model is already doing that work.
+
+That's not the result I was hoping for. It's the one I'm publishing, because the
+point of an eval harness is to find out, not to confirm.
+
+## So when *is* the loop worth its cost?
+
+When the model isn't doing the work for you:
+
+- **Weak or unaligned models** that genuinely hallucinate.
+- **Noisy or contradictory corpora**, where the right move is to reject a
+  confident-looking wrong chunk.
+- **Multi-hop questions** a single retrieval can't satisfy.
+
+ragloop is a clean place to *measure that for your own data* rather than guess.
+
+## How it works
 
 ```
 plan → retrieve → fuse → generate → critique --(grounded?)--> done
           ^------------------------------------------(retry)----'
 ```
 
-A LangGraph state machine:
+A LangGraph state machine: decompose the question, choose a retrieval strategy
+(lexical / semantic / full-chunk read), fuse and rank evidence, generate a cited
+answer, then grade whether it's grounded — and loop back if not, bounded by a
+retry budget.
 
-1. **plan** — decompose the question into sub-queries.
-2. **retrieve** — the agent picks its strategy: lexical, semantic, or a
-   full-chunk read of a promising hit.
-3. **fuse** — merge and rank the evidence.
-4. **generate** — write an answer with inline `[source:id]` citations.
-5. **critique** — grade whether the answer is *fully* grounded in those sources.
-   Not grounded? Feed the critique back to **retrieve** and try again.
+## The parts I'm actually happy with
 
-That single back-edge from the critic is the whole point. It's what turns "a
-prompt with some context" into something that self-corrects.
-
-## What it does in practice
-
-Point it at a small policy corpus and ask an in-corpus question:
-
-> **Q:** What is the refund window?
-> **A:** The refund window is **30 days** from the delivery date shown on your
-> order confirmation `[source:refunds:1]`.
-> `grounded=True`
-
-Now ask something the corpus doesn't cover:
-
-> **Q:** Do you offer financing?
-> **A:** The provided sources do not contain any information about financing
-> options... I'd recommend reaching out directly to the support team.
-> `grounded=True`
-
-It declines instead of inventing a financing policy. For a system that's going
-to answer real customer questions, an honest "I don't know" is the feature.
-
-## Built to be swapped, not forked
-
-The things companies actually differ on are behind one interface each, so you
-never touch the engine:
-
-- **Vector store** — Chroma ships as the reference backend; subclass
-  `Retriever` for pgvector, Pinecone, Elasticsearch.
-- **LLM** — Anthropic (Claude) ships as the reference provider; subclass
-  `LLMProvider` for OpenAI, Bedrock, or a local model.
-- **Corpus, model, retry budget** — all config-driven.
-
-Retrieval is also exposed over **MCP**, so any MCP-capable client can query your
-corpus with access control enforced server-side.
-
-A complete custom retriever + provider is ~30 lines — see
-`examples/quickstart.py`, which runs with zero API keys and also powers the test
-suite.
+- **Swap-not-fork design.** Your vector store and your LLM each sit behind one
+  interface. Chroma + Anthropic ship as references; a local **Ollama** backend
+  ships too (so the whole thing — including the benchmark — runs for $0).
+- **MCP-native retrieval**, so any MCP client can query your corpus.
+- **Honest, reproducible evals** — deterministic, label-based, no LLM-as-judge,
+  and the harness even caught a false-positive bug in my own decline metric.
+- ~88% test coverage, typed, CI across Python 3.10–3.12.
 
 ## Try it
 
 ```bash
 pip install "ragloop-agentic[all]"
-export ANTHROPIC_API_KEY=sk-ant-...
-python examples/demo.py        # the scripted in-corpus / out-of-corpus demo
+python examples/quickstart.py          # no API key
+# reproduce the benchmark locally for $0:
+ollama pull qwen2.5:7b-instruct
+python -m evals.runner --llm ollama --model qwen2.5:7b-instruct --scenario hard
 ```
 
-Or the dependency-free version with no API key:
+Apache-2.0 · https://github.com/jaesungl33/ragloop
 
-```bash
-python examples/quickstart.py
-```
-
-## Roadmap
-
-- Cross-encoder reranker hook in the fusion step
-- Persistent agent memory across sessions (LangGraph checkpointer)
-- pgvector + OpenAI reference backends
-- Streaming answers
-
-Apache-2.0. Issues and PRs welcome.
+Feedback I'd genuinely like: a setting where the self-correction loop *clearly*
+beats a one-shot baseline. I couldn't manufacture one without it feeling
+contrived — if you can, I want to see it.
